@@ -1,0 +1,437 @@
+// Sistema de Contabilidad Moderna - Basado en normativas colombianas
+// Compatible con PUC DIAN y requisitos de facturación electrónica
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== GESTIÓN DE USUARIOS Y AUTENTICACIÓN =====
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  password      String
+  role          UserRole @default(USER)
+  companyId     String
+  isActive      Boolean  @default(true)
+  lastLogin     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relaciones
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  auditLogs     AuditLog[]
+  
+  @@map("users")
+}
+
+model Company {
+  id              String   @id @default(cuid())
+  nit             String   @unique
+  name            String
+  commercialName  String?
+  address         String?
+  phone           String?
+  email           String?
+  regime          String   // COMUN / SIMPLIFICADO
+  type            String   // PERSONA_NATURAL / PERSONA_JURIDICA
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relaciones
+  users           User[]
+  accounts        ChartOfAccounts[]
+  thirdParties    ThirdParty[]
+  transactions    Transaction[]
+  invoices        Invoice[]
+  periods         AccountingPeriod[]
+  fixedAssets     FixedAsset[]
+  supplierInvoices SupplierInvoice[]
+  taxConfigs      TaxConfig[]
+  
+  @@map("companies")
+}
+
+enum UserRole {
+  ADMIN
+  ACCOUNTANT
+  MANAGER
+  USER
+}
+
+// ===== PLAN ÚNICO DE CUENTAS (PUC) =====
+
+model ChartOfAccounts {
+  id              String   @id @default(cuid())
+  companyId       String
+  code            String   // Código PUC (ej: 110505)
+  name            String   // Nombre de la cuenta
+  level           Int      // Nivel del PUC (1-8)
+  nature          String   // DEUDORA / ACREEDORA
+  accountType     String   // ACTIVO / PASIVO / PATRIMONIO / INGRESOS / GASTOS
+  isAuxiliary     Boolean  @default(false)
+  parentCode      String?  // Código de la cuenta padre
+  allowsMovement  Boolean  @default(true)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relaciones
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent          ChartOfAccounts? @relation("AccountHierarchy", fields: [parentCode], references: [code])
+  children        ChartOfAccounts[] @relation("AccountHierarchy")
+  transactionDetails TransactionDetail[]
+  thirdPartyAccounts ThirdPartyAccount[]
+  taxDebitAccounts TaxConfig[] @relation("TaxDebitAccount")
+  taxCreditAccounts TaxConfig[] @relation("TaxCreditAccount")
+  
+  @@unique([companyId, code])
+  @@unique([code])
+  @@map("chart_of_accounts")
+}
+
+// ===== CONFIGURACIÓN DE IMPUESTOS =====
+
+model TaxConfig {
+  id              String   @id @default(cuid())
+  companyId       String
+  name            String
+  type            String   // IVA / RETEFUENTE / RETEICA / ICA
+  rate            Float
+  description     String?
+  isActive        Boolean  @default(true)
+  appliesTo       String   // ALL / SERVICES / GOODS / SPECIFIC
+  accountDebitId  String?
+  accountCreditId String?
+  threshold       Float?   // Umbral para retenciones
+  baseType        String   @default("TOTAL") // TOTAL / SUBTOTAL / TAX_BASE
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relaciones
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  debitAccount    ChartOfAccounts? @relation("TaxDebitAccount", fields: [accountDebitId], references: [id])
+  creditAccount   ChartOfAccounts? @relation("TaxCreditAccount", fields: [accountCreditId], references: [id])
+  
+  @@unique([companyId, name, type])
+  @@map("tax_configs")
+}
+
+// ===== TERCEROS (CLIENTES, PROVEEDORES, EMPLEADOS) =====
+
+model ThirdParty {
+  id              String   @id @default(cuid())
+  companyId       String
+  identificationType String // CC / NIT / CE / TI
+  identificationNumber String @unique
+  name            String
+  commercialName  String?
+  address         String?
+  phone           String?
+  email           String?
+  city            String?
+  department      String?
+  country         String   @default("Colombia")
+  type            String   // CUSTOMER / SUPPLIER / EMPLOYEE / BOTH
+  taxRegime       String   // COMUN / SIMPLIFICADO / GRAN_CONTRIBUYENTE
+  isAutoRetainer  Boolean  @default(false)
+  fiscalResponsibilities String // JSON array: IVA, ICA, RETEFUENTE, etc.
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relaciones
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accounts        ThirdPartyAccount[]
+  invoices        Invoice[]
+  supplierInvoices SupplierInvoice[]
+  payments        Payment[]
+  transactions    Transaction[]
+  
+  @@map("third_parties")
+}
+
+model ThirdPartyAccount {
+  id              String   @id @default(cuid())
+  thirdPartyId    String
+  accountId       String
+  accountType     String   // DEBITO / CREDITO
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relaciones
+  thirdParty      ThirdParty @relation(fields: [thirdPartyId], references: [id], onDelete: Cascade)
+  account         ChartOfAccounts @relation(fields: [accountId], references: [id])
+  
+  @@unique([thirdPartyId, accountId])
+  @@map("third_party_accounts")
+}
+
+// ===== PERIODOS CONTABLES =====
+
+model AccountingPeriod {
+  id              String   @id @default(cuid())
+  companyId       String
+  year            Int
+  month           Int
+  status          PeriodStatus @default(OPEN)
+  openingDate     DateTime
+  closingDate     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relaciones
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions    Transaction[]
+  
+  @@unique([companyId, year, month])
+  @@map("accounting_periods")
+}
+
+enum PeriodStatus {
+  OPEN
+  CLOSED
+  LOCKED
+}
+
+// ===== COMPROBANTES CONTABLES =====
+
+model Transaction {
+  id              String   @id @default(cuid())
+  companyId       String
+  voucherType     String   // INGRESO / EGRESO / TRASLADO / DIARIO
+  voucherNumber   String
+  description     String
+  date            DateTime
+  totalDebit      Float    @default(0)
+  totalCredit     Float    @default(0)
+  status          String   @default("DRAFT") // DRAFT / POSTED / CANCELLED
+  createdBy       String
+  approvedBy      String?
+  approvedAt      DateTime?
+  periodId        String
+  thirdPartyId    String?
+  costCenterId    String?
+  projectId       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relaciones
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator         User     @relation(fields: [createdBy], references: [id])
+  period          AccountingPeriod @relation(fields: [periodId], references: [id])
+  thirdParty      ThirdParty? @relation(fields: [thirdPartyId], references: [id])
+  details         TransactionDetail[]
+  
+  @@unique([companyId, voucherType, voucherNumber])
+  @@map("transactions")
+}
+
+model TransactionDetail {
+  id              String   @id @default(cuid())
+  transactionId   String
+  accountId       String
+  description     String?
+  debit           Float    @default(0)
+  credit          Float    @default(0)
+  thirdPartyId    String?
+  costCenterId    String?
+  projectId       String?
+  taxBase         Float?
+  taxRate         Float?
+  taxAmount       Float?
+  createdAt       DateTime @default(now())
+  
+  // Relaciones
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  account         ChartOfAccounts @relation(fields: [accountId], references: [id])
+  
+  @@map("transaction_details")
+}
+
+// ===== FACTURACIÓN ELECTRÓNICA =====
+
+model Invoice {
+  id              String   @id @default(cuid())
+  companyId       String
+  invoiceNumber   String
+  prefix          String?
+  resolution      String?
+  date            DateTime
+  dueDate         DateTime?
+  thirdPartyId    String
+  subtotal        Float
+  taxAmount       Float
+  total           Float
+  status          InvoiceStatus @default(DRAFT)
+  cune            String?  // Código Único de Factura Electrónica
+  qrCode          String?
+  xmlUrl          String?
+  pdfUrl          String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relaciones
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  thirdParty      ThirdParty @relation(fields: [thirdPartyId], references: [id])
+  items           InvoiceItem[]
+  payments        Payment[]
+  
+  @@unique([companyId, invoiceNumber])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id              String   @id @default(cuid())
+  invoiceId       String
+  description     String
+  quantity        Float
+  unitPrice       Float
+  subtotal        Float
+  taxRate         Float
+  taxAmount       Float
+  total           Float
+  accountId       String
+  
+  // Relaciones
+  invoice         Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  @@map("invoice_items")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  PAID
+  CANCELLED
+}
+
+// ===== CUENTAS POR PAGAR =====
+
+model SupplierInvoice {
+  id              String   @id @default(cuid())
+  companyId       String
+  invoiceNumber   String
+  supplierId      String
+  date            DateTime
+  dueDate         DateTime?
+  subtotal        Float
+  taxAmount       Float
+  total           Float
+  status          String   @default("PENDING") // PENDING / PAID / CANCELLED
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relaciones
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier        ThirdParty @relation(fields: [supplierId], references: [id])
+  payments        Payment[]
+  
+  @@map("supplier_invoices")
+}
+
+// ===== PAGOS =====
+
+model Payment {
+  id              String   @id @default(cuid())
+  companyId       String
+  paymentNumber   String
+  date            DateTime
+  amount          Float
+  paymentMethod   String   // TRANSFERENCIA / EFECTIVO / CHEQUE / TARJETA
+  reference       String?
+  notes           String?
+  invoiceId       String?
+  supplierInvoiceId String?
+  thirdPartyId    String
+  status          String   @default("PENDING") // PENDING / COMPLETED / CANCELLED
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relaciones
+  invoice         Invoice? @relation(fields: [invoiceId], references: [id])
+  supplierInvoice SupplierInvoice? @relation(fields: [supplierInvoiceId], references: [id])
+  thirdParty      ThirdParty @relation(fields: [thirdPartyId], references: [id])
+  
+  @@map("payments")
+}
+
+// ===== ACTIVOS FIJOS =====
+
+model FixedAsset {
+  id              String   @id @default(cuid())
+  companyId       String
+  code            String
+  name            String
+  description     String?
+  category        String
+  acquisitionDate DateTime
+  acquisitionCost Float
+  depreciationMethod String // LINEA_RECTA / SUMA_DIGITOS
+  usefulLife      Int      // Vida útil en meses
+  currentDepreciation Float @default(0)
+  accumulatedDepreciation Float @default(0)
+  netValue        Float
+  status          String   @default("ACTIVE") // ACTIVE / DISPOSED / FULLY_DEPRECIATED
+  disposalDate    DateTime?
+  disposalValue   Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relaciones
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  depreciations   FixedAssetDepreciation[]
+  
+  @@unique([companyId, code])
+  @@map("fixed_assets")
+}
+
+model FixedAssetDepreciation {
+  id              String   @id @default(cuid())
+  fixedAssetId    String
+  period          String   // YYYY-MM
+  depreciationAmount Float
+  accumulatedDepreciation Float
+  netValue        Float
+  createdAt       DateTime @default(now())
+  
+  // Relaciones
+  fixedAsset      FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
+  
+  @@unique([fixedAssetId, period])
+  @@map("fixed_asset_depreciations")
+}
+
+// ===== AUDITORÍA =====
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  userId          String
+  action          String   // CREATE / UPDATE / DELETE / LOGIN
+  entityType      String   // USER / TRANSACTION / INVOICE / etc.
+  entityId        String
+  oldValues       String?  // JSON
+  newValues       String?  // JSON
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+  
+  // Relaciones
+  user            User     @relation(fields: [userId], references: [id])
+  
+  @@map("audit_logs")
+}
