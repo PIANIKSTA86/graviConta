@@ -80,6 +80,13 @@ model ChartOfAccounts {
   isAuxiliary     Boolean  @default(false)
   parentCode      String?  // Código de la cuenta padre
   allowsMovement  Boolean  @default(true)
+  // Configuración por cuenta
+  isTemplate      Boolean  @default(false) // Marca si la cuenta es plantilla
+  requiresCostCenter Boolean @default(false) // Requiere centros de costo
+  appliesWithholding Boolean @default(false) // Aplica retenciones
+  appliesTaxes    Boolean  @default(false) // Aplica impuestos
+  niifCode        String?  // Código NIIF asociado
+  closingAccountId String? // Cuenta de cierre (relación)
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -88,6 +95,8 @@ model ChartOfAccounts {
   company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   parent          ChartOfAccounts? @relation("AccountHierarchy", fields: [parentCode], references: [code])
   children        ChartOfAccounts[] @relation("AccountHierarchy")
+  closingAccount  ChartOfAccounts? @relation("AccountClosing", fields: [closingAccountId], references: [id])
+  closedByAccounts ChartOfAccounts[] @relation("AccountClosing")
   transactionDetails TransactionDetail[]
   thirdPartyAccounts ThirdPartyAccount[]
   taxDebitAccounts TaxConfig[] @relation("TaxDebitAccount")

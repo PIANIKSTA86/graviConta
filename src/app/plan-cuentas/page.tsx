@@ -7,7 +7,9 @@ import { DashboardHeader } from "@/components/dashboard/DashboardHeader"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronRight, FileText, FolderTree } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { ChevronDown, ChevronRight, FileText, FolderTree, Plus, Search, Edit, RefreshCw } from "lucide-react"
+import { AccountDialog } from "@/components/plan-cuentas/AccountDialog"
 
 type AccountNode = {
   id: string
@@ -35,7 +37,19 @@ async function fetchNodes(parentCode: string | null, token: string): Promise<Acc
   return data.nodes as AccountNode[]
 }
 
-function TreeItem({ node, token }: { node: AccountNode; token: string }) {
+async function searchAccounts(query: string, token: string): Promise<AccountNode[]> {
+  const res = await fetch(`/api/accounts/search?q=${encodeURIComponent(query)}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error('Error en búsqueda')
+  const data = await res.json()
+  return data.accounts as AccountNode[]
+}
+
+function TreeItem({ node, token, onEdit }: { node: AccountNode; token: string; onEdit: (node: AccountNode) => void }) {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [children, setChildren] = useState<AccountNode[] | null>(null)
@@ -61,7 +75,7 @@ function TreeItem({ node, token }: { node: AccountNode; token: string }) {
 
   return (
     <div>
-      <div className="flex items-center py-1.5 select-none" style={{ marginLeft: indent }}>
+      <div className="flex items-center py-1.5 select-none group" style={{ marginLeft: indent }}>
         {node.hasChildren ? (
           <button
             onClick={onToggle}
@@ -87,12 +101,20 @@ function TreeItem({ node, token }: { node: AccountNode; token: string }) {
             {node.accountType} · {node.nature} {node.isAuxiliary ? '· Auxiliar' : ''}
           </div>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => onEdit(node)}
+        >
+          <Edit className="h-4 w-4" />
+        </Button>
       </div>
       {expanded && (
         <div className="ml-0">
           {loading && <div className="pl-10 text-xs text-muted-foreground">Cargando...</div>}
           {!loading && children && children.map((child) => (
-            <TreeItem key={child.id} node={child} token={token} />
+            <TreeItem key={child.id} node={child} token={token} onEdit={onEdit} />
           ))}
         </div>
       )}
@@ -106,6 +128,11 @@ export default function PlanCuentasPage() {
   const [roots, setRoots] = useState<AccountNode[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<AccountNode[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingAccount, setEditingAccount] = useState<AccountNode | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem("auth-token")
@@ -128,6 +155,49 @@ export default function PlanCuentasPage() {
     load()
   }, [router])
 
+  const handleSearch = async () => {
+    if (!token || !searchQuery.trim()) {
+      setSearchResults(null)
+      return
+    }
+    try {
+      setSearching(true)
+      const results = await searchAccounts(searchQuery, token)
+      setSearchResults(results)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const handleRefresh = async () => {
+    if (!token) return
+    try {
+      setLoading(true)
+      setSearchQuery("")
+      setSearchResults(null)
+      const nodes = await fetchNodes(null, token)
+      setRoots(nodes)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateNew = () => {
+    setEditingAccount(null)
+    setDialogOpen(true)
+  }
+
+  const handleEdit = (node: AccountNode) => {
+    setEditingAccount(node)
+    setDialogOpen(true)
+  }
+
+  const handleSave = () => {
+    handleRefresh()
+  }
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -148,6 +218,30 @@ export default function PlanCuentasPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="flex gap-2 mb-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por código o nombre..."
+                      className="pl-8"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSearch()
+                      }}
+                    />
+                  </div>
+                  <Button variant="outline" onClick={handleSearch} disabled={searching}>
+                    {searching ? 'Buscando...' : 'Buscar'}
+                  </Button>
+                  <Button variant="outline" onClick={handleRefresh}>
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                  <Button onClick={handleCreateNew}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nueva Cuenta
+                  </Button>
+                </div>
                 {error && (
                   <div className="text-sm text-red-600 mb-2">{error}</div>
                 )}
@@ -155,37 +249,53 @@ export default function PlanCuentasPage() {
                   <div className="text-sm text-muted-foreground">Cargando plan de cuentas...</div>
                 )}
                 {!loading && token && (
-                  <div className="border rounded-md divide-y">
-                    {roots.length === 0 ? (
+                  <div className="border rounded-md divide-y max-h-[600px] overflow-y-auto">
+                    {searchResults ? (
+                      searchResults.length === 0 ? (
+                        <div className="p-4 text-sm text-muted-foreground">No se encontraron resultados.</div>
+                      ) : (
+                        searchResults.map((n) => (
+                          <div key={n.id} className="flex items-center py-2 px-3 hover:bg-muted group">
+                            <FileText className="h-4 w-4 text-muted-foreground mr-2" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-sm text-muted-foreground">{n.code}</span>
+                                <span className="truncate">{n.name}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {n.accountType} · {n.nature} {n.isAuxiliary ? '· Auxiliar' : ''}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => handleEdit(n)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))
+                      )
+                    ) : roots.length === 0 ? (
                       <div className="p-4 text-sm text-muted-foreground">No hay cuentas registradas.</div>
                     ) : (
-                      roots.map((n) => <TreeItem key={n.id} node={n} token={token} />)
+                      roots.map((n) => <TreeItem key={n.id} node={n} token={token} onEdit={handleEdit} />)
                     )}
                   </div>
                 )}
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      if (!token) return
-                      try {
-                        setLoading(true)
-                        const nodes = await fetchNodes(null, token)
-                        setRoots(nodes)
-                      } finally {
-                        setLoading(false)
-                      }
-                    }}
-                  >
-                    Refrescar
-                  </Button>
-                </div>
               </CardContent>
             </Card>
           </div>
         </div>
       </main>
+      <AccountDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSave={handleSave}
+        account={editingAccount}
+        token={token || ""}
+      />
     </SidebarProvider>
   )
 }

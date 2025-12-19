@@ -178,7 +178,19 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { code, name, nature, accountType, parentCode } = body
+    const { 
+      code, 
+      name, 
+      nature, 
+      accountType, 
+      parentCode,
+      isTemplate,
+      requiresCostCenter,
+      appliesWithholding,
+      appliesTaxes,
+      niifCode,
+      closingAccountCode,
+    } = body
 
     if (!code || !name || !nature || !accountType) {
       return NextResponse.json(
@@ -205,6 +217,15 @@ export async function POST(request: NextRequest) {
     // Calcular nivel basado en la longitud del código
     const level = code.length
 
+    // Resolver cuenta de cierre si se envía código
+    let closingAccountId: string | null = null
+    if (closingAccountCode) {
+      const closing = await db.chartOfAccounts.findFirst({
+        where: { companyId: decoded.companyId, code: closingAccountCode }
+      })
+      closingAccountId = closing?.id ?? null
+    }
+
     // Crear cuenta en la base de datos
     const account = await db.chartOfAccounts.create({
       data: {
@@ -217,6 +238,12 @@ export async function POST(request: NextRequest) {
         parentCode,
         isAuxiliary: level >= 4,
         allowsMovement: level >= 3,
+        isTemplate: Boolean(isTemplate ?? false),
+        requiresCostCenter: Boolean(requiresCostCenter ?? false),
+        appliesWithholding: Boolean(appliesWithholding ?? false),
+        appliesTaxes: Boolean(appliesTaxes ?? false),
+        niifCode: niifCode ?? null,
+        closingAccountId,
       }
     })
 
