@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Bell, Search, User, Moon, Sun, LogOut } from "lucide-react"
 import { useTheme } from "next-themes"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -30,6 +31,33 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({ breadcrumbs = [] }: DashboardHeaderProps) {
     const { theme, setTheme } = useTheme()
+    const router = useRouter()
+
+    const handleLogout = async () => {
+        try {
+            console.log('🔐 Iniciando logout...')
+            const response = await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+
+            console.log('📡 Respuesta logout:', response.status)
+            if (response.ok) {
+                console.log('✅ Logout exitoso, limpiando storage...')
+                // Clear local storage
+                localStorage.removeItem('auth-token')
+                // Redirect to login
+                console.log('🚀 Redirigiendo a /login...')
+                router.push('/login')
+            } else {
+                console.error('❌ Error en logout:', response.status)
+            }
+        } catch (error) {
+            console.error('❌ Error de logout:', error)
+        }
+    }
 
     return (
         <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6">
@@ -101,7 +129,7 @@ export function DashboardHeader({ breadcrumbs = [] }: DashboardHeaderProps) {
                             <User className="mr-2 h-4 w-4" />
                             <span>Perfil</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onSelect={handleLogout}>
                             <LogOut className="mr-2 h-4 w-4" />
                             <span>Cerrar Sesión</span>
                         </DropdownMenuItem>
