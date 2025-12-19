@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2 } from "lucide-react"
+import { Loader2, Search } from "lucide-react"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 type AccountNode = {
   id: string
@@ -43,6 +45,9 @@ export function AccountDialog({ open, onOpenChange, onSave, account, token }: Pr
   const [appliesTaxes, setAppliesTaxes] = useState(false)
   const [niifCode, setNiifCode] = useState("")
   const [closingAccountCode, setClosingAccountCode] = useState("")
+  const [closingAccountOptions, setClosingAccountOptions] = useState<Array<{ code: string; name: string }>>([])
+  const [closingAccountOpen, setClosingAccountOpen] = useState(false)
+  const [closingAccountSearch, setClosingAccountSearch] = useState("")
 
   useEffect(() => {
     if (account) {
@@ -64,8 +69,27 @@ export function AccountDialog({ open, onOpenChange, onSave, account, token }: Pr
       setAppliesTaxes(false)
       setNiifCode("")
       setClosingAccountCode("")
+      setClosingAccountSearch("")
     }
   }, [account, open])
+
+  const handleSearchClosingAccount = async (query: string) => {
+    setClosingAccountSearch(query)
+    if (!token || !query.trim()) {
+      setClosingAccountOptions([])
+      return
+    }
+    try {
+      const res = await fetch(`/api/accounts/search?q=${encodeURIComponent(query)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      setClosingAccountOptions((data.accounts || []).map((a: any) => ({ code: a.code, name: a.name })))
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -209,12 +233,51 @@ export function AccountDialog({ open, onOpenChange, onSave, account, token }: Pr
             </div>
             <div className="grid gap-2">
               <Label htmlFor="closingAccountCode">Código Cuenta de Cierre (opcional)</Label>
-              <Input
-                id="closingAccountCode"
-                value={closingAccountCode}
-                onChange={(e) => setClosingAccountCode(e.target.value)}
-                placeholder="Ej: 6105"
-              />
+              <Popover open={closingAccountOpen} onOpenChange={setClosingAccountOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between"
+                    onClick={() => setClosingAccountOpen(true)}
+                  >
+                    {closingAccountCode ? (
+                      <span>{closingAccountCode}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Buscar cuenta...</span>
+                    )}
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Buscar código o nombre..."
+                      onValueChange={handleSearchClosingAccount}
+                      value={closingAccountSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No se encontraron cuentas.</CommandEmpty>
+                      {closingAccountOptions.length > 0 && (
+                        <CommandGroup>
+                          {closingAccountOptions.map((opt) => (
+                            <CommandItem
+                              key={opt.code}
+                              value={opt.code}
+                              onSelect={() => {
+                                setClosingAccountCode(opt.code)
+                                setClosingAccountOpen(false)
+                              }}
+                            >
+                              <span className="font-mono text-sm">{opt.code}</span>
+                              <span className="ml-2 flex-1 truncate text-muted-foreground">{opt.name}</span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="grid gap-2">
               <div className="flex items-center gap-3">

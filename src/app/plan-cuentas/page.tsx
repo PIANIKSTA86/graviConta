@@ -8,8 +8,9 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ChevronDown, ChevronRight, FileText, FolderTree, Plus, Search, Edit, RefreshCw } from "lucide-react"
+import { ChevronDown, ChevronRight, FileText, FolderTree, Plus, Search, Edit, RefreshCw, AlertCircle } from "lucide-react"
 import { AccountDialog } from "@/components/plan-cuentas/AccountDialog"
+import { AccountValidationDialog } from "@/components/plan-cuentas/AccountValidationDialog"
 
 type AccountNode = {
   id: string
@@ -49,7 +50,7 @@ async function searchAccounts(query: string, token: string): Promise<AccountNode
   return data.accounts as AccountNode[]
 }
 
-function TreeItem({ node, token, onEdit }: { node: AccountNode; token: string; onEdit: (node: AccountNode) => void }) {
+function TreeItem({ node, token, onEdit, onValidate }: { node: AccountNode; token: string; onEdit: (node: AccountNode) => void; onValidate: (node: AccountNode) => void }) {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [children, setChildren] = useState<AccountNode[] | null>(null)
@@ -109,12 +110,23 @@ function TreeItem({ node, token, onEdit }: { node: AccountNode; token: string; o
         >
           <Edit className="h-4 w-4" />
         </Button>
+        {node.isAuxiliary && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={() => onValidate(node)}
+            title="Validar reglas"
+          >
+            <AlertCircle className="h-4 w-4" />
+          </Button>
+        )}
       </div>
       {expanded && (
         <div className="ml-0">
           {loading && <div className="pl-10 text-xs text-muted-foreground">Cargando...</div>}
           {!loading && children && children.map((child) => (
-            <TreeItem key={child.id} node={child} token={token} onEdit={onEdit} />
+            <TreeItem key={child.id} node={child} token={token} onEdit={onEdit} onValidate={onValidate} />
           ))}
         </div>
       )}
@@ -133,6 +145,9 @@ export default function PlanCuentasPage() {
   const [searching, setSearching] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<AccountNode | null>(null)
+  const [validationDialogOpen, setValidationDialogOpen] = useState(false)
+  const [validationAccountId, setValidationAccountId] = useState("")
+  const [validationAccountCode, setValidationAccountCode] = useState("")
 
   useEffect(() => {
     const token = localStorage.getItem("auth-token")
@@ -192,6 +207,12 @@ export default function PlanCuentasPage() {
   const handleEdit = (node: AccountNode) => {
     setEditingAccount(node)
     setDialogOpen(true)
+  }
+
+  const handleValidate = (node: AccountNode) => {
+    setValidationAccountId(node.id)
+    setValidationAccountCode(node.code)
+    setValidationDialogOpen(true)
   }
 
   const handleSave = () => {
@@ -280,7 +301,7 @@ export default function PlanCuentasPage() {
                     ) : roots.length === 0 ? (
                       <div className="p-4 text-sm text-muted-foreground">No hay cuentas registradas.</div>
                     ) : (
-                      roots.map((n) => <TreeItem key={n.id} node={n} token={token} onEdit={handleEdit} />)
+                      roots.map((n) => <TreeItem key={n.id} node={n} token={token} onEdit={handleEdit} onValidate={handleValidate} />)
                     )}
                   </div>
                 )}
@@ -294,6 +315,13 @@ export default function PlanCuentasPage() {
         onOpenChange={setDialogOpen}
         onSave={handleSave}
         account={editingAccount}
+        token={token || ""}
+      />
+      <AccountValidationDialog
+        open={validationDialogOpen}
+        onOpenChange={setValidationDialogOpen}
+        accountId={validationAccountId}
+        accountCode={validationAccountCode}
         token={token || ""}
       />
     </SidebarProvider>
