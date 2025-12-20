@@ -8,9 +8,10 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ChevronDown, ChevronRight, FileText, FolderTree, Plus, Search, Edit, RefreshCw, AlertCircle } from "lucide-react"
+import { ChevronDown, ChevronRight, FileText, FolderTree, Plus, Search, Edit, RefreshCw, AlertCircle, Trash2, Ban } from "lucide-react"
 import { AccountDialog } from "@/components/plan-cuentas/AccountDialog"
 import { AccountValidationDialog } from "@/components/plan-cuentas/AccountValidationDialog"
+import { AccountDeleteDialog } from "@/components/plan-cuentas/AccountDeleteDialog"
 
 type AccountNode = {
   id: string
@@ -50,7 +51,7 @@ async function searchAccounts(query: string, token: string): Promise<AccountNode
   return data.accounts as AccountNode[]
 }
 
-function TreeItem({ node, token, onEdit, onValidate }: { node: AccountNode; token: string; onEdit: (node: AccountNode) => void; onValidate: (node: AccountNode) => void }) {
+function TreeItem({ node, token, onEdit, onValidate, onDelete }: { node: AccountNode; token: string; onEdit: (node: AccountNode) => void; onValidate: (node: AccountNode) => void; onDelete: (node: AccountNode) => void }) {
   const [expanded, setExpanded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [children, setChildren] = useState<AccountNode[] | null>(null)
@@ -121,12 +122,21 @@ function TreeItem({ node, token, onEdit, onValidate }: { node: AccountNode; toke
             <AlertCircle className="h-4 w-4" />
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => onDelete(node)}
+          title="Desactivar o eliminar"
+        >
+          <Ban className="h-4 w-4" />
+        </Button>
       </div>
       {expanded && (
         <div className="ml-0">
           {loading && <div className="pl-10 text-xs text-muted-foreground">Cargando...</div>}
           {!loading && children && children.map((child) => (
-            <TreeItem key={child.id} node={child} token={token} onEdit={onEdit} onValidate={onValidate} />
+            <TreeItem key={child.id} node={child} token={token} onEdit={onEdit} onValidate={onValidate} onDelete={onDelete} />
           ))}
         </div>
       )}
@@ -148,6 +158,8 @@ export default function PlanCuentasPage() {
   const [validationDialogOpen, setValidationDialogOpen] = useState(false)
   const [validationAccountId, setValidationAccountId] = useState("")
   const [validationAccountCode, setValidationAccountCode] = useState("")
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deletingAccount, setDeletingAccount] = useState<AccountNode | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem("auth-token")
@@ -213,6 +225,11 @@ export default function PlanCuentasPage() {
     setValidationAccountId(node.id)
     setValidationAccountCode(node.code)
     setValidationDialogOpen(true)
+  }
+
+  const handleDelete = (node: AccountNode) => {
+    setDeletingAccount(node)
+    setDeleteDialogOpen(true)
   }
 
   const handleSave = () => {
@@ -301,7 +318,7 @@ export default function PlanCuentasPage() {
                     ) : roots.length === 0 ? (
                       <div className="p-4 text-sm text-muted-foreground">No hay cuentas registradas.</div>
                     ) : (
-                      roots.map((n) => <TreeItem key={n.id} node={n} token={token} onEdit={handleEdit} onValidate={handleValidate} />)
+                      roots.map((n) => <TreeItem key={n.id} node={n} token={token} onEdit={handleEdit} onValidate={handleValidate} onDelete={handleDelete} />)
                     )}
                   </div>
                 )}
@@ -322,6 +339,13 @@ export default function PlanCuentasPage() {
         onOpenChange={setValidationDialogOpen}
         accountId={validationAccountId}
         accountCode={validationAccountCode}
+        token={token || ""}
+      />
+      <AccountDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onSuccess={handleSave}
+        account={deletingAccount}
         token={token || ""}
       />
     </SidebarProvider>

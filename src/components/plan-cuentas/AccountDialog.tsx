@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, Search } from "lucide-react"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
+import { Loader2, Search, AlertCircle } from "lucide-react"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
@@ -48,6 +49,10 @@ export function AccountDialog({ open, onOpenChange, onSave, account, token }: Pr
   const [closingAccountOptions, setClosingAccountOptions] = useState<Array<{ code: string; name: string }>>([])
   const [closingAccountOpen, setClosingAccountOpen] = useState(false)
   const [closingAccountSearch, setClosingAccountSearch] = useState("")
+  const [parentAccountOptions, setParentAccountOptions] = useState<Array<{ code: string; name: string }>>([])
+  const [parentAccountOpen, setParentAccountOpen] = useState(false)
+  const [parentAccountSearch, setParentAccountSearch] = useState("")
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (account) {
@@ -63,6 +68,8 @@ export function AccountDialog({ open, onOpenChange, onSave, account, token }: Pr
       setNature("DEUDORA")
       setAccountType("ACTIVO")
       setParentCode("")
+      setParentAccountSearch("")
+      setParentAccountOptions([])
       setIsTemplate(false)
       setRequiresCostCenter(false)
       setAppliesWithholding(false)
@@ -91,9 +98,32 @@ export function AccountDialog({ open, onOpenChange, onSave, account, token }: Pr
     }
   }
 
+  const handleSearchParentAccount = async (query: string) => {
+    setParentAccountSearch(query)
+    if (!token || !query.trim()) {
+      setParentAccountOptions([])
+      return
+    }
+    try {
+      const res = await fetch(`/api/accounts/search?q=${encodeURIComponent(query)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      setParentAccountOptions((data.accounts || []).map((a: any) => ({ code: a.code, name: a.name })))
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!code || !name) return
+    setError(null)
+    
+    if (!code || !name || !parentCode) {
+      setError("Código, nombre y cuenta padre son requeridos")
+      return
+    }
 
     try {
       setLoading(true)
@@ -133,7 +163,7 @@ export function AccountDialog({ open, onOpenChange, onSave, account, token }: Pr
             name,
             nature,
             accountType,
-            parentCode: parentCode || null,
+            parentCode: parentCode,
             isTemplate,
             requiresCostCenter,
             appliesWithholding,
@@ -165,6 +195,13 @@ export function AccountDialog({ open, onOpenChange, onSave, account, token }: Pr
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             <div className="grid gap-2">
               <Label htmlFor="code">Código PUC</Label>
               <Input
@@ -223,13 +260,52 @@ export function AccountDialog({ open, onOpenChange, onSave, account, token }: Pr
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="parentCode">Código Cuenta Padre (opcional)</Label>
-              <Input
-                id="parentCode"
-                value={parentCode}
-                onChange={(e) => setParentCode(e.target.value)}
-                placeholder="Ej: 1105"
-              />
+              <Label htmlFor="parentCode">Código Cuenta Padre *</Label>
+              <Popover open={parentAccountOpen} onOpenChange={setParentAccountOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between"
+                    onClick={() => setParentAccountOpen(true)}
+                  >
+                    {parentCode ? (
+                      <span>{parentCode}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Buscar cuenta padre...</span>
+                    )}
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="p-0" align="start">
+                  <Command>
+                    <CommandInput
+                      placeholder="Buscar código o nombre..."
+                      onValueChange={handleSearchParentAccount}
+                      value={parentAccountSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No se encontraron cuentas.</CommandEmpty>
+                      {parentAccountOptions.length > 0 && (
+                        <CommandGroup>
+                          {parentAccountOptions.map((opt) => (
+                            <CommandItem
+                              key={opt.code}
+                              value={opt.code}
+                              onSelect={() => {
+                                setParentCode(opt.code)
+                                setParentAccountOpen(false)
+                              }}
+                            >
+                              <span className="font-mono text-sm">{opt.code}</span>
+                              <span className="ml-2 flex-1 truncate text-muted-foreground">{opt.name}</span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      )}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="closingAccountCode">Código Cuenta de Cierre (opcional)</Label>

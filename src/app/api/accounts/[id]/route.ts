@@ -104,6 +104,7 @@ export async function DELETE(
     }
 
     const { id } = await params
+    const { action } = await request.json().catch(() => ({}))
 
     // Verificar que la cuenta existe y pertenece a la empresa
     const existingAccount = await db.chartOfAccounts.findFirst({
@@ -111,38 +112,86 @@ export async function DELETE(
         id,
         companyId: user.companyId,
       },
+      include: {
+        transactionDetails: true,
+      },
     })
 
     if (!existingAccount) {
       return NextResponse.json({ error: 'Cuenta no encontrada' }, { status: 404 })
     }
 
-    // Soft delete (marcar como inactiva)
-    const account = await db.chartOfAccounts.update({
-      where: { id },
-      data: {
-        isActive: false,
-      },
-    })
+    // Validar que no haya movimientos vigentes o saldo
+    const hasActiveMovements = existingAccount.transactionDetails && existingAccount.transactionDetails.length > 0
+    
+    if (action === 'hard-delete') {
+      // Eliminación física - solo si no tiene movimientos
+      if (hasActiveMovements) {
+        return NextResponse.json({
+          error: 'No se puede eliminar la cuenta porque tiene movimientos asociados',
+          hasMovements: true,
+        }, { status: 400 })
+      }
 
-    // Crear auditoría
-    await db.auditLog.create({
-      data: {
-        userId: user.userId,
-        action: 'DELETE',
-        entityType: 'ACCOUNT',
-        entityId: account.id,
-        oldValues: JSON.stringify(existingAccount),
-        ipAddress: request.ip || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown',
-      },
-    })
+      // Eliminar física la cuenta
+      await db.chartOfAccounts.delete({
+        where: { id },
+      })
 
-    return NextResponse.json({
-      message: 'Cuenta desactivada exitosamente',
-    })
+      // Crear auditoría
+      await db.auditLog.create({
+        data: {
+          userId: user.userId,
+          action: 'DELETE',
+          entityType: 'ACCOUNT',
+          entityId: existingAccount.id,
+          oldValues: JSON.stringify(existingAccount),
+          ipAddress: request.ip || 'unknown',
+          userAgent: request.headers.get('user-agent') || 'unknown',
+        },
+      })
+
+      return NextResponse.json({
+        message: 'Cuenta eliminada exitosamente',
+      })
+    } else {
+      // Soft delete (desactivar) - solo si no tiene movimientos vigentes
+      if (hasActiveMovements) {
+        return NextResponse.json({
+          error: 'No se puede desactivar la cuenta porque tiene movimientos asociados',
+          hasMovements: true,
+        }, { status: 400 })
+      }
+
+      // Marcar como inactiva
+      const account = await db.chartOfAccounts.update({
+        where: { id },
+        data: {
+          isActive: false,
+        },
+      })
+
+      // Crear auditoría
+      await db.auditLog.create({
+        data: {
+          userId: user.userId,
+          action: 'DISABLE',
+          entityType: 'ACCOUNT',
+          entityId: account.id,
+          oldValues: JSON.stringify(existingAccount),
+          newValues: JSON.stringify(account),
+          ipAddress: request.ip || 'unknown',
+          userAgent: request.headers.get('user-agent') || 'unknown',
+        },
+      })
+
+      return NextResponse.json({
+        message: 'Cuenta desactivada exitosamente',
+        account,
+      })
+    }
   } catch (error) {
-    console.error('Error eliminando cuenta:', error)
+    console.error('Error en operación de cuenta:', error)
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
 }
