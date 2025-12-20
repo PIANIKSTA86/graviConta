@@ -1,25 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import jwt from 'jsonwebtoken'
+import { getCurrentUser } from '@/lib/auth'
 import { z } from 'zod'
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
-
-function getTokenFromRequest(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7)
-  }
-  return null
-}
-
-function verifyToken(token: string) {
-  try {
-    return jwt.verify(token, JWT_SECRET) as any
-  } catch (error) {
-    return null
-  }
-}
 
 const thirdPartySchema = z.object({
   identificationType: z.enum(['CC', 'NIT', 'CE', 'TI']),
@@ -39,20 +21,10 @@ const thirdPartySchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const token = getTokenFromRequest(request)
-    
-    if (!token) {
+    const user = await getCurrentUser(request)
+    if (!user) {
       return NextResponse.json(
         { error: 'No autorizado' },
-        { status: 401 }
-      )
-    }
-
-    const decoded = verifyToken(token)
-    
-    if (!decoded) {
-      return NextResponse.json(
-        { error: 'Token inválido' },
         { status: 401 }
       )
     }
@@ -64,7 +36,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search')
 
     const where: any = {
-      companyId: decoded.companyId,
+      companyId: user.companyId,
       isActive: true,
     }
 
@@ -126,20 +98,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const token = getTokenFromRequest(request)
-    
-    if (!token) {
+    const user = await getCurrentUser(request)
+    if (!user) {
       return NextResponse.json(
         { error: 'No autorizado' },
-        { status: 401 }
-      )
-    }
-
-    const decoded = verifyToken(token)
-    
-    if (!decoded) {
-      return NextResponse.json(
-        { error: 'Token inválido' },
         { status: 401 }
       )
     }
@@ -147,10 +109,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = thirdPartySchema.parse(body)
 
-    // Verificar si ya existe un tercero con la misma identificación en la base de datos
+    // Verificar si ya existe un tercero con la misma identificación
     const existingThirdParty = await db.thirdParty.findFirst({
       where: {
-        companyId: decoded.companyId,
+        companyId: user.companyId,
         identificationNumber: validatedData.identificationNumber
       }
     })
@@ -162,29 +124,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Crear tercero en la base de datos
+    // Crear tercero
     const thirdParty = await db.thirdParty.create({
       data: {
-        companyId: decoded.companyId,
-        ...validatedData,
+        companyId: user.companyId,
+        identificationType: validatedData.identificationType,
+        identificationNumber: validatedData.identificationNumber,
+        name: validatedData.name,
+        commercialName: validatedData.commercialName || null,
+        address: validatedData.address || null,
+        phone: validatedData.phone || null,
+        email: validatedData.email || null,
+        city: validatedData.city || null,
+        department: validatedData.department || null,
+        type: validatedData.type,
+        taxRegime: validatedData.taxRegime,
+        isAutoRetainer: validatedData.isAutoRetainer,
+        fiscalResponsibilities: validatedData.fiscalResponsibilities ?? '[]',
       }
     })
 
     // Crear auditoría
     await db.auditLog.create({
       data: {
-        userId: decoded.userId,
+        userId: user.userId,
         action: 'CREATE',
         entityType: 'THIRD_PARTY',
         entityId: thirdParty.id,
         newValues: JSON.stringify(thirdParty),
-        ipAddress: request.ip || 'unknown',
+        ipAddress: 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown',
       }
     })
 
     return NextResponse.json({
-      message: 'Tercero creado exitosamente en la base de datos',
+      message: 'Tercero creado exitosamente',
       thirdParty
     })
 
@@ -193,7 +167,7 @@ export async function POST(request: NextRequest) {
     
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Datos inválidos', details: error.errors },
+        { error: 'Datos inválidos', details: error.issues },
         { status: 400 }
       )
     }
