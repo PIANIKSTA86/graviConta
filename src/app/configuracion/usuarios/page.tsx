@@ -28,7 +28,7 @@ export default function UsuariosPage() {
   const [selected, setSelected] = useState<UserItem | null>(null)
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState("ACTIVE")
-  const [role, setRole] = useState("")
+  const [role, setRole] = useState("ALL")
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(20)
   const [total, setTotal] = useState(0)
@@ -52,7 +52,7 @@ export default function UsuariosPage() {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) })
       if (search.trim()) params.append("search", search.trim())
       if (status) params.append("status", status)
-      if (role) params.append("role", role)
+      if (role && role !== 'ALL') params.append("role", role)
       const res = await fetch(`/api/users?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -164,7 +164,7 @@ export default function UsuariosPage() {
             <Select value={role} onValueChange={(v) => { setPage(1); setRole(v) }}>
               <SelectTrigger className="w-[200px]"><SelectValue placeholder="Rol" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="ALL">Todos</SelectItem>
                 <SelectItem value="ADMIN">Admin</SelectItem>
                 <SelectItem value="ACCOUNTANT">Contador</SelectItem>
                 <SelectItem value="MANAGER">Gestor</SelectItem>
