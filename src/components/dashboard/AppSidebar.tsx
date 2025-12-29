@@ -76,6 +76,7 @@ const menuItems = [
     items: [
       { title: "Empresa", href: "/configuracion/empresa" },
       { title: "Impuestos", href: "/configuracion/impuestos" },
+      { title: "Tipos de Comprobantes", href: "/configuracion/tipos-comprobantes" },
       { title: "Usuarios", href: "/configuracion/usuarios" },
     ],
   },

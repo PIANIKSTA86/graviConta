@@ -14,9 +14,20 @@ async function main() {
             nit: '900123456-7',
             name: 'GraviConta Demo S.A.S',
             commercialName: 'GraviConta Demo',
+            documentType: '31',
+            verificationDigit: 7,
+            country: 'Colombia',
+            department: 'Cundinamarca',
+            city: 'Bogotá',
             address: 'Calle 100 # 20-30, Bogotá',
             phone: '+57 1 234 5678',
+            mobile: '+57 300 123 4567',
             email: 'contacto@gravicontademo.com',
+            email2: 'info@gravicontademo.com',
+            economicActivity: '6202',
+            contributorType: '1',
+            taxRegime: '48',
+            useLogoInDocuments: true,
             regime: 'COMUN',
             type: 'PERSONA_JURIDICA',
             isActive: true,
@@ -67,6 +78,23 @@ async function main() {
     })
 
     console.log(`✅ Accounting period created: ${year}-${month}`)
+
+    // Create voucher types for numbering tests
+    const voucherTypes = [
+        { code: 'ING', name: 'Comprobante de Ingreso', prefix: 'ING-', isActive: true },
+        { code: 'EGR', name: 'Comprobante de Egreso', prefix: 'EGR-', isActive: true },
+        { code: 'DIA', name: 'Comprobante Diario', prefix: 'DIA-', isActive: true },
+    ]
+
+    for (const vt of voucherTypes) {
+        await prisma.voucherType.upsert({
+            where: { companyId_code: { companyId: company.id, code: vt.code } },
+            update: { name: vt.name, prefix: vt.prefix, isActive: vt.isActive },
+            create: { companyId: company.id, ...vt },
+        })
+    }
+
+    console.log(`✅ Voucher types ready: ${voucherTypes.map(v => v.code).join(', ')}`)
 
     // Initialize PUC (Plan Único de Cuentas)
     const pucAccounts = [
@@ -168,9 +196,17 @@ async function main() {
 
     console.log('✅ Created sample third parties')
 
-    // Create sample transactions
-    const transaction1 = await prisma.transaction.create({
-        data: {
+    // Create sample transactions using upsert to avoid duplicates
+    const transaction1 = await prisma.transaction.upsert({
+        where: {
+            companyId_voucherType_voucherNumber: {
+                companyId: company.id,
+                voucherType: 'INGRESO',
+                voucherNumber: 'CI-2025-001'
+            }
+        },
+        update: {},
+        create: {
             companyId: company.id,
             voucherType: 'INGRESO',
             voucherNumber: 'CI-2025-001',
@@ -203,8 +239,16 @@ async function main() {
         },
     })
 
-    const transaction2 = await prisma.transaction.create({
-        data: {
+    const transaction2 = await prisma.transaction.upsert({
+        where: {
+            companyId_voucherType_voucherNumber: {
+                companyId: company.id,
+                voucherType: 'EGRESO',
+                voucherNumber: 'CE-2025-001'
+            }
+        },
+        update: {},
+        create: {
             companyId: company.id,
             voucherType: 'EGRESO',
             voucherNumber: 'CE-2025-001',
@@ -237,6 +281,116 @@ async function main() {
     })
 
     console.log('✅ Created sample transactions')
+
+    // Additional transactions to enrich metrics and enforce delete conditions - using upsert
+    const cajaGeneral = await prisma.chartOfAccounts.findUnique({ where: { code: '110505' } })
+    const bancoNacional = await prisma.chartOfAccounts.findUnique({ where: { code: '111005' } })
+    const ventasMercancias = await prisma.chartOfAccounts.findUnique({ where: { code: '413505' } })
+    const serviciosArr = await prisma.chartOfAccounts.findUnique({ where: { code: '513505' } })
+
+    if (cajaGeneral && bancoNacional && ventasMercancias) {
+        await prisma.transaction.upsert({
+            where: {
+                companyId_voucherType_voucherNumber: {
+                    companyId: company.id,
+                    voucherType: 'ING',
+                    voucherNumber: 'ING-0001'
+                }
+            },
+            update: {},
+            create: {
+                companyId: company.id,
+                voucherType: 'ING',
+                voucherNumber: 'ING-0001',
+                description: 'Ingreso en efectivo por ventas',
+                date: new Date(Date.now() - 86400000),
+                totalDebit: 800000,
+                totalCredit: 800000,
+                status: 'POSTED',
+                createdBy: user.id,
+                approvedBy: user.id,
+                approvedAt: new Date(),
+                periodId: period.id,
+                thirdPartyId: null,
+                details: {
+                    create: [
+                        { accountId: cajaGeneral.id, description: 'Entrada de caja', debit: 800000, credit: 0 },
+                        { accountId: ventasMercancias.id, description: 'Ventas del día', debit: 0, credit: 800000 },
+                    ],
+                },
+            },
+        })
+    }
+
+    if (cajaGeneral && bancoNacional) {
+        await prisma.transaction.upsert({
+            where: {
+                companyId_voucherType_voucherNumber: {
+                    companyId: company.id,
+                    voucherType: 'DIA',
+                    voucherNumber: 'DIA-0001'
+                }
+            },
+            update: {},
+            create: {
+                companyId: company.id,
+                voucherType: 'DIA',
+                voucherNumber: 'DIA-0001',
+                description: 'Traslado de efectivo a banco',
+                date: new Date(Date.now() - 86400000 * 3),
+                totalDebit: 200000,
+                totalCredit: 200000,
+                status: 'POSTED',
+                createdBy: user.id,
+                approvedBy: user.id,
+                approvedAt: new Date(),
+                periodId: period.id,
+                thirdPartyId: null,
+                details: {
+                    create: [
+                        { accountId: bancoNacional.id, description: 'Consignación', debit: 200000, credit: 0 },
+                        { accountId: cajaGeneral.id, description: 'Salida de caja', debit: 0, credit: 200000 },
+                    ],
+                },
+            },
+        })
+    }
+
+    if (serviciosArr && bancoNacional) {
+        await prisma.transaction.upsert({
+            where: {
+                companyId_voucherType_voucherNumber: {
+                    companyId: company.id,
+                    voucherType: 'EGR',
+                    voucherNumber: 'EGR-0001'
+                }
+            },
+            update: {},
+            create: {
+                companyId: company.id,
+                voucherType: 'EGR',
+                voucherNumber: 'EGR-0001',
+                description: 'Pago de arriendo oficina',
+                date: new Date(Date.now() - 86400000 * 5),
+                totalDebit: 1200000,
+                totalCredit: 1200000,
+                status: 'POSTED',
+                createdBy: user.id,
+                approvedBy: user.id,
+                approvedAt: new Date(),
+                periodId: period.id,
+                thirdPartyId: null,
+                details: {
+                    create: [
+                        { accountId: serviciosArr.id, description: 'Gasto de arrendamiento', debit: 1200000, credit: 0 },
+                        { accountId: bancoNacional.id, description: 'Pago desde banco', debit: 0, credit: 1200000 },
+                    ],
+                },
+            },
+        })
+    }
+
+    console.log('✅ Added extra transactions for metrics and delete-guards')
 
     console.log('🎉 Database seeding completed successfully!')
 }

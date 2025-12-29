@@ -33,29 +33,44 @@ model User {
 }
 
 model Company {
-  id              String   @id @default(cuid())
-  nit             String   @unique
-  name            String
-  commercialName  String?
-  address         String?
-  phone           String?
-  email           String?
-  regime          String   // COMUN / SIMPLIFICADO
-  type            String   // PERSONA_NATURAL / PERSONA_JURIDICA
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                        String   @id @default(cuid())
+  nit                       String   @unique
+  name                      String
+  commercialName            String?
+  documentType              String   @default("31") // 11,12,13,21,22,31,41,42,47,48,50,91
+  verificationDigit         Int?     // Dígito de verificación
+  firstName                 String?  // Para personas naturales
+  lastName                  String?  // Para personas naturales
+  country                   String   @default("Colombia")
+  department                String?  // Departamento/Estado
+  city                      String?
+  address                   String?
+  phone                     String?
+  mobile                    String?
+  email                     String?
+  email2                    String?
+  logo                      String?  // URL o base64 del logo
+  economicActivity          String?  // Código CIIU
+  contributorType           String   @default("1") // 1=Jurídica, 2=Natural
+  taxRegime                 String   @default("48") // 47=RST, 48=Responsable IVA, 49=No Responsable IVA, 50=RST+INC, 33=Responsable INC
+  useLogoInDocuments        Boolean  @default(true)
+  regime                    String   @default("COMUN") // COMUN / SIMPLIFICADO (legacy)
+  type                      String   @default("PERSONA_JURIDICA") // PERSONA_NATURAL / PERSONA_JURIDICA (legacy)
+  isActive                  Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
   
   // Relaciones
-  users           User[]
-  accounts        ChartOfAccounts[]
-  thirdParties    ThirdParty[]
-  transactions    Transaction[]
-  invoices        Invoice[]
-  periods         AccountingPeriod[]
-  fixedAssets     FixedAsset[]
-  supplierInvoices SupplierInvoice[]
-  taxConfigs      TaxConfig[]
+  users                     User[]
+  accounts                  ChartOfAccounts[]
+  thirdParties              ThirdParty[]
+  transactions              Transaction[]
+  invoices                  Invoice[]
+  periods                   AccountingPeriod[]
+  fixedAssets               FixedAsset[]
+  supplierInvoices          SupplierInvoice[]
+  taxConfigs                TaxConfig[]
+  voucherTypes              VoucherType[]
   
   @@map("companies")
 }
@@ -243,6 +258,26 @@ model Transaction {
   
   @@unique([companyId, voucherType, voucherNumber])
   @@map("transactions")
+}
+
+// ===== TIPOS DE COMPROBANTES =====
+
+model VoucherType {
+  id                 String   @id @default(cuid())
+  companyId          String
+  code               String   // Código corto: INGRESO=ING, EGRESO=EGR, TRASLADO=TRA, DIARIO=DIA
+  name               String
+  prefix             String?
+  currentConsecutive Int      @default(0)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relaciones
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@map("voucher_types")
 }
 
 model TransactionDetail {

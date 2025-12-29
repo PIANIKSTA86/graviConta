@@ -190,18 +190,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generar número de comprobante desde la base de datos
-    const lastTransaction = await db.transaction.findFirst({
-      where: {
-        companyId: decoded.companyId,
-        voucherType: validatedData.voucherType,
-      },
-      orderBy: { voucherNumber: 'desc' }
+    // Obtener tipo de comprobante para prefijo y consecutivo
+    const vt = await db.voucherType.findFirst({
+      where: { companyId: decoded.companyId, code: validatedData.voucherType }
     })
 
-    const voucherNumber = lastTransaction 
-      ? (parseInt(lastTransaction.voucherNumber) + 1).toString().padStart(6, '0')
-      : '000001'
+    if (!vt || !vt.isActive) {
+      return NextResponse.json(
+        { error: 'Tipo de comprobante no configurado o inactivo' },
+        { status: 400 }
+      )
+    }
+
+    // Incrementar consecutivo de forma segura
+    const updatedVT = await db.voucherType.update({
+      where: { id: vt.id },
+      data: { currentConsecutive: vt.currentConsecutive + 1 }
+    })
+    const baseNumber = (updatedVT.currentConsecutive).toString().padStart(6, '0')
+    const voucherNumber = `${vt.prefix ?? ''}${baseNumber}`
 
     // Crear transacción en la base de datos
     const transaction = await db.transaction.create({
@@ -257,7 +264,7 @@ export async function POST(request: NextRequest) {
         entityType: 'TRANSACTION',
         entityId: transaction.id,
         newValues: JSON.stringify(transaction),
-        ipAddress: request.ip || 'unknown',
+        ipAddress: 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown',
       }
     })
