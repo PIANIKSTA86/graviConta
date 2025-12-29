@@ -195,289 +195,400 @@ export default function CompanyPage() {
   if (loading) return <div className="p-6 text-center">Cargando...</div>
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-3xl font-bold">Configuración de Empresa</h1>
-        <p className="text-muted-foreground">Gestiona los datos generales de tu empresa</p>
+    <div className="space-y-6 p-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Configuración de Empresa</h1>
+          <p className="text-muted-foreground mt-1">Gestiona los datos generales de tu empresa</p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              load()
+              toast.info('Cambios descartados')
+            }} 
+            disabled={saving}
+          >
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Guardando...' : 'Guardar Cambios'}
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Datos Básicos */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Datos Básicos</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <Label>NIT (no editable)</Label>
-                <Input value={form.nit} disabled className="bg-muted" />
-              </div>
-              <div>
-                <Label>Razón Social *</Label>
-                <Input value={form.name} disabled className="bg-muted" />
-              </div>
-              <div>
-                <Label>Nombre Comercial</Label>
-                <Input
-                  value={form.commercialName || ''}
-                  onChange={(e) => setForm({ ...form, commercialName: e.target.value })}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Identificación */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Identificación</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Tipo de Documento *</Label>
-              <Select value={form.documentType || '31'} onValueChange={(v) => setForm({ ...form, documentType: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(DOCUMENT_TYPES).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{k} - {v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {!isPersonaNatural && (
-              <div>
-                <Label>Dígito de Verificación</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  max="9"
-                  value={form.verificationDigit ?? ''}
-                  onChange={(e) => setForm({ ...form, verificationDigit: parseInt(e.target.value) || undefined })}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Persona Natural */}
-        {isPersonaNatural && (
+      {/* Grid Layout Principal */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        
+        {/* Columna Izquierda - Información General */}
+        <div className="lg:col-span-2 space-y-6">
+          
+          {/* Identificación y Datos Básicos */}
           <Card>
             <CardHeader>
-              <CardTitle>Datos Personales</CardTitle>
+              <CardTitle>Identificación y Razón Social</CardTitle>
+              <CardDescription>Información legal y fiscal de la empresa</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label>Nombres *</Label>
-                <Input
-                  value={form.firstName || ''}
-                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label>Apellidos *</Label>
-                <Input
-                  value={form.lastName || ''}
-                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                  required
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Ubicación */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Ubicación</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>País *</Label>
-              <Select value={form.country || 'Colombia'} onValueChange={(v) => setForm({ ...form, country: v, department: v !== 'Colombia' ? null : form.department, city: v !== 'Colombia' ? null : form.city })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRIES.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {form.country === 'Colombia' && (
-              <>
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label>Departamento *</Label>
-                  <Select value={form.department || ''} onValueChange={(v) => setForm({ ...form, department: v, city: '' })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona departamento" />
+                  <Label htmlFor="nit">NIT / Número de Identificación</Label>
+                  <Input id="nit" value={form.nit} disabled className="bg-muted" />
+                  <p className="text-xs text-muted-foreground mt-1">No editable</p>
+                </div>
+                <div>
+                  <Label htmlFor="documentType">Tipo de Documento *</Label>
+                  <Select value={form.documentType || '31'} onValueChange={(v) => setForm({ ...form, documentType: v })}>
+                    <SelectTrigger id="documentType">
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.keys(DEPARTMENTS_CITIES).map((dept) => (
-                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                      {Object.entries(DOCUMENT_TYPES).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{k} - {v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="name">Razón Social *</Label>
+                  <Input id="name" value={form.name} disabled className="bg-muted" />
+                  <p className="text-xs text-muted-foreground mt-1">No editable</p>
+                </div>
+                <div>
+                  <Label htmlFor="commercialName">Nombre Comercial</Label>
+                  <Input
+                    id="commercialName"
+                    value={form.commercialName || ''}
+                    onChange={(e) => setForm({ ...form, commercialName: e.target.value })}
+                    placeholder="Nombre con el que opera"
+                  />
+                </div>
+              </div>
+
+              {!isPersonaNatural && (
+                <div className="grid gap-4 sm:grid-cols-4">
+                  <div className="sm:col-span-1">
+                    <Label htmlFor="verificationDigit">Dígito Verificación</Label>
+                    <Input
+                      id="verificationDigit"
+                      type="number"
+                      min="0"
+                      max="9"
+                      value={form.verificationDigit ?? ''}
+                      onChange={(e) => setForm({ ...form, verificationDigit: parseInt(e.target.value) || undefined })}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {isPersonaNatural && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="firstName">Nombres *</Label>
+                    <Input
+                      id="firstName"
+                      value={form.firstName || ''}
+                      onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="lastName">Apellidos *</Label>
+                    <Input
+                      id="lastName"
+                      value={form.lastName || ''}
+                      onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Ubicación */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Ubicación</CardTitle>
+              <CardDescription>Dirección física de la empresa</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <Label htmlFor="country">País *</Label>
+                  <Select value={form.country || 'Colombia'} onValueChange={(v) => setForm({ ...form, country: v, department: v !== 'Colombia' ? undefined : form.department, city: v !== 'Colombia' ? undefined : form.city })}>
+                    <SelectTrigger id="country">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COUNTRIES.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {form.department && (
-                  <div>
-                    <Label>Ciudad *</Label>
-                    <Select value={form.city || ''} onValueChange={(v) => setForm({ ...form, city: v })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona ciudad" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableCities.map((c) => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                {form.country === 'Colombia' && (
+                  <>
+                    <div>
+                      <Label htmlFor="department">Departamento *</Label>
+                      <Select value={form.department || ''} onValueChange={(v) => setForm({ ...form, department: v, city: '' })}>
+                        <SelectTrigger id="department">
+                          <SelectValue placeholder="Selecciona" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.keys(DEPARTMENTS_CITIES).map((dept) => (
+                            <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="city">Ciudad *</Label>
+                      <Select 
+                        value={form.city || ''} 
+                        onValueChange={(v) => setForm({ ...form, city: v })}
+                        disabled={!form.department}
+                      >
+                        <SelectTrigger id="city">
+                          <SelectValue placeholder="Selecciona" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableCities.map((c) => (
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
                 )}
-              </>
-            )}
-
-            <div>
-              <Label>Dirección</Label>
-              <Input
-                value={form.address || ''}
-                onChange={(e) => setForm({ ...form, address: e.target.value })}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Contacto */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Contacto</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Teléfono</Label>
-              <Input
-                value={form.phone || ''}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Móvil</Label>
-              <Input
-                value={form.mobile || ''}
-                onChange={(e) => setForm({ ...form, mobile: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Email Principal</Label>
-              <Input
-                type="email"
-                value={form.email || ''}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Email Alterno</Label>
-              <Input
-                type="email"
-                value={form.email2 || ''}
-                onChange={(e) => setForm({ ...form, email2: e.target.value })}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Clasificación Tributaria */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Clasificación Tributaria</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Tipo de Contribuyente</Label>
-              <Select value={form.contributorType || '1'} onValueChange={(v) => setForm({ ...form, contributorType: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Jurídica</SelectItem>
-                  <SelectItem value="2">Natural</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Régimen de Impuesto</Label>
-              <Select value={form.taxRegime || '48'} onValueChange={(v) => setForm({ ...form, taxRegime: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(TAX_REGIMES).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Actividad Económica (CIIU)</Label>
-              <Input
-                value={form.economicActivity || ''}
-                onChange={(e) => setForm({ ...form, economicActivity: e.target.value })}
-                placeholder="Ej: 6202"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Logo */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Logo Empresa</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {logoPreview && (
-              <div className="flex justify-center">
-                <img src={logoPreview} alt="Logo" className="max-h-32 max-w-32" />
               </div>
-            )}
-            <div>
-              <Label>Cargar Logo</Label>
-              <Input type="file" accept="image/*" onChange={handleLogoChange} />
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={form.useLogoInDocuments ?? true}
-                onCheckedChange={(v) => setForm({ ...form, useLogoInDocuments: v })}
-              />
-              <Label>Usar logo en documentos oficiales</Label>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
-      {/* Botón Guardar */}
-      <div className="flex justify-end gap-2">
-        <Button 
-          variant="outline" 
-          onClick={() => {
-            load()
-            toast.info('Cambios descartados')
-          }} 
-          disabled={saving}
-        >
-          Cancelar
-        </Button>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? 'Guardando...' : 'Guardar Cambios'}
-        </Button>
+              <div>
+                <Label htmlFor="address">Dirección Completa</Label>
+                <Input
+                  id="address"
+                  value={form.address || ''}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  placeholder="Calle, número, complemento"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Contacto */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Información de Contacto</CardTitle>
+              <CardDescription>Teléfonos y correos electrónicos</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="phone">Teléfono Fijo</Label>
+                  <Input
+                    id="phone"
+                    value={form.phone || ''}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    placeholder="(601) 234 5678"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="mobile">Móvil / Celular</Label>
+                  <Input
+                    id="mobile"
+                    value={form.mobile || ''}
+                    onChange={(e) => setForm({ ...form, mobile: e.target.value })}
+                    placeholder="300 123 4567"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="email">Email Principal *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={form.email || ''}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    placeholder="contacto@empresa.com"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="email2">Email Alterno</Label>
+                  <Input
+                    id="email2"
+                    type="email"
+                    value={form.email2 || ''}
+                    onChange={(e) => setForm({ ...form, email2: e.target.value })}
+                    placeholder="info@empresa.com"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Clasificación Tributaria */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Clasificación Tributaria</CardTitle>
+              <CardDescription>Información fiscal y régimen de impuestos</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="contributorType">Tipo de Contribuyente</Label>
+                  <Select value={form.contributorType || '1'} onValueChange={(v) => setForm({ ...form, contributorType: v })}>
+                    <SelectTrigger id="contributorType">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Persona Jurídica</SelectItem>
+                      <SelectItem value="2">Persona Natural</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="taxRegime">Régimen de Impuesto</Label>
+                  <Select value={form.taxRegime || '48'} onValueChange={(v) => setForm({ ...form, taxRegime: v })}>
+                    <SelectTrigger id="taxRegime">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(TAX_REGIMES).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="economicActivity">Actividad Económica (Código CIIU)</Label>
+                <Input
+                  id="economicActivity"
+                  value={form.economicActivity || ''}
+                  onChange={(e) => setForm({ ...form, economicActivity: e.target.value })}
+                  placeholder="Ej: 6202 - Consultoría informática"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Clasificación Industrial Internacional Uniforme
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Columna Derecha - Logo y Extras */}
+        <div className="lg:col-span-1 space-y-6">
+          
+          {/* Logo */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Logo de la Empresa</CardTitle>
+              <CardDescription>Imagen corporativa</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {logoPreview ? (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="border-2 border-dashed rounded-lg p-4 w-full flex justify-center bg-muted/30">
+                    <img 
+                      src={logoPreview} 
+                      alt="Logo" 
+                      className="max-h-40 max-w-full object-contain" 
+                    />
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setLogoPreview(null)
+                      setForm({ ...form, logo: undefined })
+                    }}
+                  >
+                    Eliminar Logo
+                  </Button>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed rounded-lg p-8 text-center bg-muted/30">
+                  <p className="text-sm text-muted-foreground mb-2">Sin logo</p>
+                  <p className="text-xs text-muted-foreground">
+                    Sube una imagen (máx. 2MB)
+                  </p>
+                </div>
+              )}
+              
+              <div>
+                <Label htmlFor="logoFile">Cargar Logo</Label>
+                <Input 
+                  id="logoFile"
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleLogoChange}
+                  className="cursor-pointer"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  PNG, JPG o SVG. Máximo 2MB
+                </p>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                <Switch
+                  id="useLogoInDocuments"
+                  checked={form.useLogoInDocuments ?? true}
+                  onCheckedChange={(v) => setForm({ ...form, useLogoInDocuments: v })}
+                />
+                <div className="flex-1">
+                  <Label htmlFor="useLogoInDocuments" className="cursor-pointer">
+                    Usar en documentos
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    El logo aparecerá en facturas, reportes y otros documentos oficiales
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Información Adicional */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Estado de la Configuración</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Información básica</span>
+                <span className="text-green-600 font-medium">Completa</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Ubicación</span>
+                <span className={form.country && form.city ? "text-green-600 font-medium" : "text-amber-600 font-medium"}>
+                  {form.country && form.city ? 'Completa' : 'Pendiente'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Logo</span>
+                <span className={logoPreview ? "text-green-600 font-medium" : "text-muted-foreground"}>
+                  {logoPreview ? 'Cargado' : 'Opcional'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Info. Tributaria</span>
+                <span className={form.taxRegime ? "text-green-600 font-medium" : "text-amber-600 font-medium"}>
+                  {form.taxRegime ? 'Completa' : 'Pendiente'}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )
