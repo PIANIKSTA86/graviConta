@@ -71,8 +71,28 @@ model Company {
   supplierInvoices          SupplierInvoice[]
   taxConfigs                TaxConfig[]
   voucherTypes              VoucherType[]
+  accountingSettings        AccountingSettings?
   
   @@map("companies")
+}
+
+model AccountingSettings {
+  id                       String   @id @default(cuid())
+  companyId                String   @unique
+  accountingType           String   @default("CAUSACION") // CAUSACION / CAJA
+  allowCash                Boolean  @default(true) // Si se permite caja para algunos flujos
+  baseCurrency             String   @default("COP")
+  multiCurrencyEnabled     Boolean  @default(false)
+  secondaryCurrency        String?
+  decimals                 Int      @default(2) // 0 / 2 / 4
+  roundingMode             String   @default("AUTO") // AUTO / MANUAL
+  enableRoundingAdjustments Boolean @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  company                  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("accounting_settings")
 }
 
 enum UserRole {

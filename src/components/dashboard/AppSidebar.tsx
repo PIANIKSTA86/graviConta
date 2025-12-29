@@ -75,6 +75,7 @@ const menuItems = [
     icon: Settings,
     items: [
       { title: "Empresa", href: "/configuracion/empresa" },
+      { title: "Parámetros Contables", href: "/configuracion/parametros-contables" },
       { title: "Impuestos", href: "/configuracion/impuestos" },
       { title: "Tipos de Comprobantes", href: "/configuracion/tipos-comprobantes" },
       { title: "Usuarios", href: "/configuracion/usuarios" },

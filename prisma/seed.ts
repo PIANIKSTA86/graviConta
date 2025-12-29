@@ -36,6 +36,24 @@ async function main() {
 
     console.log('✅ Company created:', company.name)
 
+    // Create default accounting settings
+    await prisma.accountingSettings.upsert({
+        where: { companyId: company.id },
+        update: {},
+        create: {
+            companyId: company.id,
+            accountingType: 'CAUSACION',
+            allowCash: true,
+            baseCurrency: 'COP',
+            multiCurrencyEnabled: false,
+            secondaryCurrency: null,
+            decimals: 2,
+            roundingMode: 'AUTO',
+            enableRoundingAdjustments: true,
+        },
+    })
+    console.log('✅ Accounting settings initialized')
+
     // Create demo user with hashed password
     const hashedPassword = await bcrypt.hash('demo123', 10)
 
