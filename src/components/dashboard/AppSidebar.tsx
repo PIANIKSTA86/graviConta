@@ -45,6 +45,8 @@ const menuItems = [
       { title: "Plan de Cuentas", href: "/plan-cuentas" },
       { title: "Comprobantes", href: "/comprobantes" },
       { title: "Períodos Contables", href: "/periodos" },
+      { title: "Parámetros Contables", href: "/contabilidad/parametros-contables" },
+      { title: "Tipos de Comprobantes", href: "/contabilidad/tipos-comprobantes" },
     ],
   },
   {
@@ -75,9 +77,7 @@ const menuItems = [
     icon: Settings,
     items: [
       { title: "Empresa", href: "/configuracion/empresa" },
-      { title: "Parámetros Contables", href: "/configuracion/parametros-contables" },
       { title: "Impuestos", href: "/configuracion/impuestos" },
-      { title: "Tipos de Comprobantes", href: "/configuracion/tipos-comprobantes" },
       { title: "Usuarios", href: "/configuracion/usuarios" },
     ],
   },
